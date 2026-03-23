@@ -6,7 +6,7 @@ from datetime import datetime
 # Add the server directory to path so we can import main
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from main import create_issue, start_issue, finish_issue, read_issue, update_issue, move_issue, get_vault_path
+from main import create_issue, start_issue, finish_issue, read_issue, update_issue, move_issue, get_vault_path, list_issues
 
 def test_harmonized_workflow():
     print("Starting Harmonized Vault Workflow Test...")
@@ -25,8 +25,16 @@ def test_harmonized_workflow():
         print(f"Create issue failed: {iss_uniq_id}")
         return
 
-    # 2. Test read_issue
-    print(f"\n2. Testing read_issue with ID='{iss_uniq_id}'...")
+    # 2. Test list_issues (inbox)
+    print("\n2. Testing list_issues('inbox')...")
+    inbox_list = list_issues("inbox")
+    if iss_uniq_id in inbox_list:
+        print(f"Verification: Created issue {iss_uniq_id} found in inbox.")
+    else:
+        print(f"Verification: Created issue {iss_uniq_id} NOT found in inbox list.")
+
+    # 3. Test read_issue
+    print(f"\n3. Testing read_issue with ID='{iss_uniq_id}'...")
     content = read_issue(iss_uniq_id)
     if "Error" in content:
         print(f"Read issue failed: {content}")
@@ -35,8 +43,8 @@ def test_harmonized_workflow():
     if f"ID: {iss_uniq_id}" in content:
         print("Verification: ID found in content.")
 
-    # 3. Test update_issue
-    print(f"\n3. Testing update_issue (append) with ID='{iss_uniq_id}'...")
+    # 4. Test update_issue (append) with ID='{iss_uniq_id}'
+    print(f"\n4. Testing update_issue (append) with ID='{iss_uniq_id}'...")
     append_text = "\n%% Appended verification tag %%"
     update_result = update_issue(iss_uniq_id, append_text, append=True)
     print(f"Result: {update_result}")
@@ -47,8 +55,8 @@ def test_harmonized_workflow():
     else:
         print("Verification: Append FAILED.")
 
-    # 4. Test start_issue (moves to 20_Processing)
-    print(f"\n4. Testing start_issue with ID='{iss_uniq_id}'...")
+    # 5. Test start_issue (moves to processing)
+    print(f"\n5. Testing start_issue with ID='{iss_uniq_id}'...")
     start_result = start_issue(iss_uniq_id)
     print(f"Result: {start_result[:100]}...")
     
@@ -56,35 +64,26 @@ def test_harmonized_workflow():
         print(f"Start issue failed: {start_result}")
         return
         
-    vault_root = get_vault_path()
-    # Find the file to verify its location
-    found_file = None
-    for file in (vault_root / "20_Processing").glob(f"*{iss_uniq_id}*.md"):
-        found_file = file
-        break
-    
-    if found_file:
-        print(f"Verification: File successfully moved to 20_Processing: {found_file.name}")
+    # Verify it's in processing
+    processing_list = list_issues("processing")
+    if iss_uniq_id in processing_list:
+        print(f"Verification: Issue {iss_uniq_id} found in processing.")
     else:
-        print("Verification: File NOT found in 20_Processing.")
+        print(f"Verification: Issue {iss_uniq_id} NOT found in processing.")
 
-    # 5. Test move_issue (to 999_Finished)
-    print(f"\n5. Testing move_issue to 999_Finished with ID='{iss_uniq_id}'...")
-    move_result = move_issue(iss_uniq_id, "999_Finished")
+    # 6. Test move_issue (to finished)
+    print(f"\n6. Testing move_issue to 'finished' with ID='{iss_uniq_id}'...")
+    move_result = move_issue(iss_uniq_id, "finished")
     print(f"Result: {move_result}")
     
-    found_file = None
-    for file in (vault_root / "999_Finished").glob(f"*{iss_uniq_id}*.md"):
-        found_file = file
-        break
-    
-    if found_file:
-        print(f"Verification: File successfully moved to 999_Finished: {found_file.name}")
+    finished_list = list_issues("finished")
+    if iss_uniq_id in finished_list:
+        print(f"Verification: Issue {iss_uniq_id} found in finished.")
     else:
-        print("Verification: File NOT found in 999_Finished.")
+        print(f"Verification: Issue {iss_uniq_id} NOT found in finished.")
 
-    # 6. Test finish_issue (moves to 30_ToReview and adds timestamp)
-    print(f"\n6. Testing finish_issue with ID='{iss_uniq_id}'...")
+    # 7. Test finish_issue (moves to review and adds timestamp)
+    print(f"\n7. Testing finish_issue with ID='{iss_uniq_id}'...")
     finish_result = finish_issue(iss_uniq_id)
     print(f"Result: {finish_result}")
     
@@ -92,24 +91,24 @@ def test_harmonized_workflow():
         print(f"Finish issue failed: {finish_result}")
         return
         
-    found_file = None
-    for file in (vault_root / "30_ToReview").glob(f"*{iss_uniq_id}*.md"):
-        found_file = file
-        break
-    
-    if found_file:
-        print(f"Verification: File successfully moved to 30_ToReview: {found_file.name}")
-        content = found_file.read_text()
+    review_list = list_issues("review")
+    if iss_uniq_id in review_list:
+        print(f"Verification: Issue {iss_uniq_id} found in review.")
+        content = read_issue(iss_uniq_id)
         if "%% Finished:" in content:
             print("Verification: Finished timestamp found.")
         else:
             print("Verification: Finished timestamp NOT found.")
         
         # Cleanup
-        os.remove(found_file)
-        print(f"Cleanup: Removed {found_file}")
+        # Find the actual path to delete it
+        from main import _find_issue_path
+        found_file = _find_issue_path(iss_uniq_id)
+        if found_file:
+            os.remove(found_file)
+            print(f"Cleanup: Removed {found_file}")
     else:
-        print("Verification: File NOT found in 30_ToReview.")
+        print(f"Verification: Issue {iss_uniq_id} NOT found in review.")
 
 if __name__ == "__main__":
     test_harmonized_workflow()

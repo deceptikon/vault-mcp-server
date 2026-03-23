@@ -4,7 +4,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
@@ -14,6 +14,14 @@ mcp = FastMCP("Vault")
 DEFAULT_VAULT_PATH = "/home/lexx/Q/massage.kg/.unihub-vault/UniHubVault"
 VAULT_PATH = os.environ.get("VAULT_PATH", DEFAULT_VAULT_PATH)
 
+# Internal mapping for issue statuses to folder names
+STATUS_MAP = {
+    "inbox": "10_Inbox",
+    "processing": "20_Processing",
+    "review": "30_ToReview",
+    "finished": "999_Finished"
+}
+
 def get_vault_path() -> Path:
     if not VAULT_PATH:
         raise ValueError("VAULT_PATH environment variable is not set")
@@ -22,10 +30,9 @@ def get_vault_path() -> Path:
 def _find_issue_path(iss_uniq_id: str) -> Optional[Path]:
     """Helper to find an issue's file path by its unique ID."""
     vault_root = get_vault_path()
-    valid_stages = ["10_Inbox", "20_Processing", "30_ToReview", "999_Finished"]
     
-    for stage in valid_stages:
-        stage_dir = vault_root / stage
+    for folder in STATUS_MAP.values():
+        stage_dir = vault_root / folder
         if not stage_dir.exists():
             continue
         # Search for files containing the unique ID
@@ -39,7 +46,7 @@ def read_note(path: str) -> str:
     Read a note from the vault.
     
     Args:
-        path: The path to the note relative to the vault root (e.g., '10_Inbox/note.md').
+        path: The path to the note relative to the vault root.
     """
     vault_root = get_vault_path()
     full_path = (vault_root / path).resolve()
@@ -62,7 +69,7 @@ def read_note(path: str) -> str:
 @mcp.tool()
 def get_protocol(name: str) -> str:
     """
-    Get a protocol content from the 50_Protocols/ directory.
+    Get a protocol content.
     
     Args:
         name: The name of the protocol (with or without .md extension).
@@ -77,7 +84,7 @@ def get_protocol(name: str) -> str:
 @mcp.tool()
 def search_vault(query: str, search_type: str = "keyword") -> str:
     """
-    Search through all .md files in the vault directory.
+    Search through all .md files in the vault.
     
     Args:
         query: The search query or regex pattern.
@@ -159,23 +166,22 @@ def list_notes(directory: str = None) -> str:
         return f"Error listing notes: {str(e)}"
 
 @mcp.tool()
-def list_stage_issues(stage: str) -> str:
+def list_issues(status: str = "inbox") -> str:
     """
-    List all issues in a specific stage directory.
+    List all issues with a specific status.
     
     Args:
-        stage: One of: '10_Inbox', '20_Processing', '30_ToReview', '999_Finished'.
+        status: The status of issues to list. One of: 'inbox', 'processing', 'review', 'finished'.
     """
-    valid_stages = ["10_Inbox", "20_Processing", "30_ToReview", "999_Finished"]
-    if stage not in valid_stages:
-        return f"Error: Invalid stage. Must be one of {valid_stages}"
+    if status not in STATUS_MAP:
+        return f"Error: Invalid status. Must be one of {list(STATUS_MAP.keys())}"
         
-    return list_notes(stage)
+    return list_notes(STATUS_MAP[status])
 
 @mcp.tool()
-def create_issue(name: str, body: str, tags: list[str] = None) -> str:
+def create_issue(name: str, body: str, tags: List[str] = None) -> str:
     """
-    Create a new issue in the 10_Inbox directory.
+    Create a new issue.
     
     Args:
         name: The name of the issue.
@@ -215,7 +221,7 @@ def create_issue(name: str, body: str, tags: list[str] = None) -> str:
         content = f"ID: {iss_uniq_id}\n" + content
             
         filename = f"<~{day_mon}~> {iss_uniq_id}_{name}.md"
-        target_path = vault_root / "10_Inbox" / filename
+        target_path = vault_root / STATUS_MAP["inbox"] / filename
         
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_text(content, encoding="utf-8")
@@ -272,24 +278,24 @@ def update_issue(iss_uniq_id: str, content: str, append: bool = False) -> str:
         return f"Error updating issue: {str(e)}"
 
 @mcp.tool()
-def move_issue(iss_uniq_id: str, target_stage: str) -> str:
+def move_issue(iss_uniq_id: str, status: str) -> str:
     """
-    Move an issue to a different stage directory by its unique ID.
+    Move an issue to a different status.
     
     Args:
         iss_uniq_id: The unique ID of the issue.
-        target_stage: One of: '10_Inbox', '20_Processing', '30_ToReview', '999_Finished'.
+        status: The target status. One of: 'inbox', 'processing', 'review', 'finished'.
     """
-    valid_stages = ["10_Inbox", "20_Processing", "30_ToReview", "999_Finished"]
-    if target_stage not in valid_stages:
-        return f"Error: Invalid target stage. Must be one of {valid_stages}"
+    if status not in STATUS_MAP:
+        return f"Error: Invalid status. Must be one of {list(STATUS_MAP.keys())}"
         
     issue_path = _find_issue_path(iss_uniq_id)
     if not issue_path:
         return f"Error: Issue with ID '{iss_uniq_id}' not found."
         
     vault_root = get_vault_path()
-    target_path = vault_root / target_stage / issue_path.name
+    target_folder = STATUS_MAP[status]
+    target_path = vault_root / target_folder / issue_path.name
     
     # Ensure target directory exists
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -297,30 +303,30 @@ def move_issue(iss_uniq_id: str, target_stage: str) -> str:
     try:
         if issue_path != target_path:
             shutil.move(str(issue_path), str(target_path))
-        return f"Moved issue {iss_uniq_id} to {target_stage}"
+        return f"Moved issue {iss_uniq_id} to {status}"
     except Exception as e:
         return f"Error moving issue: {str(e)}"
 
 @mcp.tool()
 def start_issue(iss_uniq_id: str) -> str:
     """
-    Start an issue by moving it to 20_Processing.
+    Start an issue by moving it to 'processing' status.
     
     Args:
         iss_uniq_id: The unique ID of the issue.
     """
-    result = move_issue(iss_uniq_id, "20_Processing")
+    result = move_issue(iss_uniq_id, "processing")
     if result.startswith("Error"):
         return result
         
     # After moving, read the content to return it as part of the "start" action
     content = read_issue(iss_uniq_id)
-    return f"Issue {iss_uniq_id} started and moved to 20_Processing.\n\nDetails:\n{content}"
+    return f"Issue {iss_uniq_id} started and moved to processing.\n\nDetails:\n{content}"
 
 @mcp.tool()
 def finish_issue(iss_uniq_id: str) -> str:
     """
-    Finish an issue by updating timestamps and moving it to 30_ToReview.
+    Finish an issue by updating timestamps and moving it to 'review' status.
     
     Args:
         iss_uniq_id: The unique ID of the issue.
@@ -347,7 +353,7 @@ def finish_issue(iss_uniq_id: str) -> str:
         
         issue_path.write_text(content, encoding="utf-8")
         
-        return move_issue(iss_uniq_id, "30_ToReview")
+        return move_issue(iss_uniq_id, "review")
     except Exception as e:
         return f"Error finishing issue: {str(e)}"
 

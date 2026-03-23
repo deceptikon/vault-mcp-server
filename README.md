@@ -5,20 +5,26 @@ A Model Context Protocol (MCP) server for interacting with the UniHub Vault.
 ## Core Issue Lifecycle Tools
 
 ### `create_issue`
-Create a new issue in the `10_Inbox` directory.
+Create a new issue.
 - **Parameters**:
   - `name`: Short descriptive name for the issue.
   - `body`: Detailed description of the issue.
   - `tags`: Optional list of tags.
 - **Returns**: `iss_uniq_id` (8-character unique ID).
 
+### `list_issues`
+List all issues with a specific status.
+- **Parameters**:
+  - `status`: One of `inbox`, `processing`, `review`, `finished`. Defaults to `inbox`.
+- **Returns**: A list of issue filenames.
+
 ### `start_issue`
-Start an issue by moving it to `20_Processing`.
+Start an issue by moving it to `processing`.
 - **Parameters**: `iss_uniq_id` (the 8-character unique ID).
 - **Returns**: Issue content and confirmation.
 
 ### `finish_issue`
-Finish an issue by updating timestamps/tags and moving it to `30_ToReview`.
+Finish an issue by updating timestamps/tags and moving it to `review`.
 - **Parameters**: `iss_uniq_id` (the 8-character unique ID).
 
 ## Other Tools
@@ -35,17 +41,17 @@ Update or append content to an issue by its unique ID.
   - `append`: (Boolean) If true, appends to the end of the file.
 
 ### `move_issue`
-Move an issue to any valid stage directory.
+Move an issue to any valid status.
 - **Parameters**:
   - `iss_uniq_id`: The 8-character unique ID.
-  - `target_stage`: One of `10_Inbox`, `20_Processing`, `30_ToReview`, `999_Finished`.
+  - `status`: One of `inbox`, `processing`, `review`, `finished`.
 
 ### `read_note`
 Read any note from the vault.
-- **Parameters**: `path` (relative to vault root, e.g., `40_Entities/Project.md`)
+- **Parameters**: `path` (relative to vault root)
 
 ### `get_protocol`
-Get a protocol content from the `50_Protocols/` directory.
+Get a protocol content.
 - **Parameters**: `name` (protocol name)
 
 ### `search_vault`
@@ -57,10 +63,6 @@ Search through all `.md` files in the vault.
 ### `list_notes`
 List all markdown files in a specific directory.
 - **Parameters**: `directory` (relative to vault root)
-
-### `list_stage_issues`
-List all issues in a specific stage directory (`10_Inbox`, etc.).
-- **Parameters**: `stage`
 
 ## Configuration
 
